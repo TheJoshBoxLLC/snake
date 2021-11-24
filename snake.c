@@ -75,3 +75,43 @@ void init_pit_border()
         }
     }
 }
+
+
+void input()
+
+    switch (getch()) {
+        case 'd':
+            dir = 1;
+            break;
+        case 'w':
+            dir = 2;
+            break;
+        case 'a':
+            dir = 3;
+            break;
+        case 's':
+            dir = 4;
+            break;
+        }
+
+
+
+        if (dir == 1) {
+            headx++;
+
+        }
+        if (dir == 2) {
+            heady--;
+        }
+        if (dir == 3) {
+            headx--;
+        }
+        if (dir == 4) {
+            heady++;
+        }
+
+        move(heady,headx);
+        addch('@')
+        refresh();
+
+    }
