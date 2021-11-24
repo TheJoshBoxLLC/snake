@@ -78,6 +78,7 @@ void init_pit_border()
 
 
 void input()
+{
 
     switch (getch()) {
         case 'd':
