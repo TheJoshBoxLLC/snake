@@ -25,13 +25,13 @@
 // end constants *************
 
 // ************* variables ************* //
-static int row = 0;            // current row
-static int col = 0;            // current column
-static char key = 'd';         // key input
-unsigned short ticks = 0;      // ticks make up the game clock. ticks will eventually get faster when trophies are introduced
-unsigned short timeUnit = 128; // timeUnit is made up of ticks
-static short directionY = 0;   // y direction
-static short directionX = 0;   // x direction
+int row = 0;            // current row
+int col = 0;            // current column
+char key = 'd';         // key input
+short ticks = 0;      // ticks make up the game clock. ticks will eventually get faster when trophies are introduced
+short timeUnit = 128; // timeUnit is made up of ticks
+short directionY = 0;   // y direction
+short directionX = 0;   // x direction
 struct timespec speed, rem;    // refresh rate
 int snake_head_y = 0;          // y coordinate of the snake's head
 int snake_head_x = 0;          // x coordinate of the snake's head
