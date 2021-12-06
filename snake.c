@@ -18,11 +18,11 @@
 * [X] The snake's speed is proportional to its length.
 * 
 * The trophies:
-* [ ] Trophies are represented by a digit randomly chosen from 1 to 9.
-* [ ] There's always exactly one trophy in the snake pit at any given moment.
-* [ ] When the snake eats the trophy, its length is increased by the corresponding number of characters.
-* [ ] A trophy expires after a random interval from 1 to 9 seconds.
-* [ ] A new trophy is shown at a random location on the screen after the previous one has either expired or is eaten by the snake.
+* [X] Trophies are represented by a digit randomly chosen from 1 to 9.
+* [X] There's always exactly one trophy in the snake pit at any given moment.
+* [X] When the snake eats the trophy, its length is increased by the corresponding number of characters.
+* [X] A trophy expires after a random interval from 1 to 9 seconds.
+* [X] A new trophy is shown at a random location on the screen after the previous one has either expired or is eaten by the snake.
 * 
 * The gameplay:
 * The snake dies and the game ends if:
@@ -61,6 +61,8 @@ void end_snake_game(int signum);
 void detect_collisions();
 void check_win();
 int calculate_snake_length();
+void init_trophy();
+void run_every_second_check_trophy();
 // end function prototypes *************
 
 // ************* variables ************* //
@@ -83,47 +85,62 @@ struct node                 // LL representation of snake. *next points towards 
     struct node *prev;
     struct node *next;
 };
-struct node *head; // snake head
-struct node *tail; // snake tail
+struct node *head;         // snake head
+struct node *tail;         // snake tail
+int trophy_value = 0;      // value of the trophy
+int trophy_row = 0;        // row of the trophy
+int trophy_col = 0;        // column of the trophy
+int trophy_expiration = 0; // expiration time of the trophy
+int trophy_ticks = 0;      // ticks to expiration
 // end variables *************
 
 int main()
 {
-    srand((unsigned)time(NULL));     // seed random number generator
-    signal(SIGINT, end_snake_game);  // when user terminates program, end game!
-    initscr();                       // start curses
-    clear();                         // clear the screen
-    curs_set(0);                     // turn off cursor
+    // housekeeping
+    srand((unsigned)time(NULL));    // seed random number generator
+    signal(SIGINT, end_snake_game); // when user terminates program, end game!
+    initscr();                      // start curses
+    clear();                        // clear the screen
+    curs_set(0);                    // turn off cursor
+    speed.tv_sec = 0;               // sleep timer
+    speed.tv_nsec = 781250;         // 1/128th of a second in nanoseconds
+    keypad(stdscr, TRUE);           // enable keypad mode
+    start_color();                  // enable color
+    // init_pair(1, COLOR_RED, COLOR_BLACK);   // set color pair 1
+    // init_pair(2, COLOR_GREEN, COLOR_BLACK); // set color pair 2
+
+    // set up the game
     init_pit_border();               // initialize pit border
     key = choose_random_direction(); // set a random initial direction for the snake. For first deliverable this is to the right
-    speed.tv_sec = 0;                // sleep timer
-    speed.tv_nsec = 781250;          // 1/128th of a second in nanoseconds
     char input;                      // the key input
-    keypad(stdscr, TRUE);            // enable keypad mode
     row = LINES;                     // num rows
     col = COLS;                      // num columns
+
     // center the snake
     snake_head_y = row / 2;
     snake_head_x = col / 2;
     init_snake(snake_head_y, snake_head_x); // initialize snake of size 5 in the center of the screen
-    win_length = (2 * (LINES + COLS)) / 2;  // calculate length of snake required to win
-    timeUnit = 40 + win_length;             // set time unit to 40 plus the length to win. This is because we want the use to end on a timeUnit of 40.
-    timeUnitConstant = timeUnit;            // set time unit constant to time unit. This is used to increase snake speed.
+
+    win_length = LINES + COLS;   // calculate length of snake required to win. Half the perimeter is required to win. Perimeter is 2*(rows + columns). Half of that is 2*(rows + columns)/2. We can simplify this to rows+columns.
+    timeUnit = 50 + win_length;  // set time unit to 50 plus the length to win. This is because we want the use to end on a timeUnit of 50.
+    timeUnitConstant = timeUnit; // set time unit constant to time unit. This is used to increase snake speed.
+
     // Print welcome message to center of screen
     move(row / 2, col / 2 - 50 / 2);
-    addstr("Welcome to our snake game! Press any key to start.");
-    move(row - 1, col - 1);
+    addstr("Welcome to our snake game! Press any key to play!");
 
     refresh(); // buffer -> screen
 
-    getchar();     // wait for user input
+    getchar();     // wait for user input to continue game
     noecho();      // don't echo user input
     set_nodelay(); // set no delay mode
 
     // clear "Welcome to our snake game! Press any key to start."
     move(row / 2, col / 2 - 50 / 2);
-    addstr("                                                  ");
+    addstr("                                                 ");
     move(row - 1, col - 1);
+
+    init_trophy(); // initialize first trophy
 
     // start game and loop until user terminates, wins, or loses
     // By: Benjamin Carlson
@@ -133,10 +150,18 @@ int main()
         {
             nanosleep(&speed, &rem); // sleep for 1/128th of a second
             ticks++;                 // increment ticks
+            trophy_ticks++;          // increment trophy ticks
 
+            // run run_every_second() every second
             if (ticks % timeUnit == 0) // if ticks is a multiple of time unit == 0, increment by 1 gameunit
             {
                 run_when_time_runs_out();
+            }
+
+            if (trophy_ticks == 1088) // 128 * 8.5 -> 1 second
+            {
+                trophy_ticks = 0;
+                run_every_second_check_trophy();
             }
         }
 
@@ -188,6 +213,8 @@ int main()
 */
 void init_pit_border()
 {
+    // attron(COLOR_PAIR(1)); // set color pair 1
+    // attron(A_BOLD);
     for (int i = 1; i < LINES; i++)
     { // outer loop
         for (int j = 0; j < COLS; j++)
@@ -195,11 +222,13 @@ void init_pit_border()
             move(i, j); // move cursor to new position
             // only add "-" or "|" to the outer perimeter
             if (i == 1 || i == LINES - 1)
-                addstr("-");
+                addstr("X");
             else if (j == 0 || j == COLS - 1)
-                addstr("|");
+                addstr("X");
         }
     }
+    // attroff(COLOR_PAIR(1)); // turn off color pair 1
+    // attroff(A_BOLD);
 }
 
 /*
@@ -227,6 +256,7 @@ void init_snake(int start_y, int start_x)
 */
 void grow_snake(int num_to_grow_by)
 {
+    // attron(COLOR_PAIR(2)); // set color pair 2
     // grow snake by num_to_grow_by
     for (int i = 0; i < num_to_grow_by; i++)
     {
@@ -239,6 +269,7 @@ void grow_snake(int num_to_grow_by)
         tail->next = new_snake_piece;                                              // set tail next to new piece
         body->prev = new_snake_piece;                                              // set body prev to new piece
     }
+    // attroff(COLOR_PAIR(2)); // turn off color pair 2
 }
 
 /*
@@ -248,13 +279,14 @@ void grow_snake(int num_to_grow_by)
 */
 void move_snake()
 {
-    int y = head->row;                 // y coordinate of the snake's head
-    int x = head->column;              // x coordinate of the snake's head
-    head->row += directionY;           // move snake head in direction of directionY
-    head->column += directionX;        // move snake head in direction of directionX
-    move(head->row, head->column);     // move cursor to new position
+    // attron(COLOR_PAIR(2));         // set color pair 2
+    int y = head->row;             // y coordinate of the snake's head
+    int x = head->column;          // x coordinate of the snake's head
+    head->row += directionY;       // move snake head in direction of directionY
+    head->column += directionX;    // move snake head in direction of directionX
+    move(head->row, head->column); // move cursor to new position
     attron(A_STANDOUT);
-    addstr("O");                       // add "O" to the screen. This is the snake head
+    addstr("O"); // add "O" to the screen. This is the snake head
     attroff(A_STANDOUT);
     struct node *scanner = head->prev; // scanner is the node that will be removed from the snake
     while (scanner != NULL)            // move all nodes in the snake
@@ -271,6 +303,7 @@ void move_snake()
     }
     move(y, x);  // move cursor to old head position
     addstr(" "); // erase old head
+    // attroff(COLOR_PAIR(2)); // turn off color pair 2
 }
 
 /*
@@ -335,22 +368,28 @@ char choose_random_direction()
 */
 void run_when_time_runs_out()
 {
+    // if snake head is on the trophy, grow snake by trophy amount and call init_trophy again
+    if (head->row == trophy_row && head->column == trophy_col)
+    {
+        grow_snake(trophy_value);
+        init_trophy();
+    }
     check_win(); // check if the snake has won
-    // get random number from 1 to 5. If number is 1, then the snake will grow.
-    int random_number = rand() % 5;
-    if (random_number == 1)
-        grow_snake(1);                                      // grow snake by 1, testing purposes
+    // // get random number from 1 to 5. If number is 1, then the snake will grow.
+    // int random_number = rand() % 5;
+    // if (random_number == 1)
+    //     grow_snake(1);                                      // grow snake by 1, testing purposes
     timeUnit = timeUnitConstant - calculate_snake_length(); // time unit is current time unit - snake length. This speeds up the snake as it gets longer.
     ticks = 0;                                              // reset ticks
     move_snake();                                           // move snake
     detect_collisions();                                    // detect collisions
     move(0, 0);
-    addstr("Length To Win: ");
+    addstr("Win Length: ");
     printw("%d", win_length);
-    addstr("  Current Snake Length: ");
+    addstr(" | Snake Length: ");
     printw("%d", calculate_snake_length());
-    addstr("  Snake Speed: ");
-    printw("%d", timeUnitConstant - timeUnit);
+    addstr(" | Trophy Timer: ");
+    printw("%d", trophy_expiration);
     refresh(); // buffer -> screen
 }
 
@@ -447,5 +486,65 @@ void check_win()
         refresh();
         sleep(2);
         raise(SIGINT); // raise interrupt signal to end game
+    }
+}
+
+/*
+* Trophy - Init
+* By: Benjamin Carlson
+* What it does: Creates a trophy at a random location with a random value between 1 and 9. Does not appear on the snake.
+*/
+void init_trophy()
+{
+    // get random number from 1 to 9
+    trophy_value = rand() % 9 + 1;
+    // get random location
+    trophy_row = rand() % LINES;
+    trophy_col = rand() % COLS;
+
+    // if the trophy is on the snake, call init_trophy again
+    struct node *scanner = head;
+    while (scanner != NULL)
+    {
+        if (scanner->row == trophy_row && scanner->column == trophy_col)
+            init_trophy();
+        scanner = scanner->prev;
+    }
+
+    // if the trophy is on the border, call init_trophy again
+    if (trophy_row == 1 || trophy_row == LINES - 1 || trophy_col == 0 || trophy_col == COLS - 1)
+        init_trophy();
+
+    // if the trophy is on the first row, call init_trophy again
+    if (trophy_row == 0)
+        init_trophy();
+
+    // get trophy exprire time -> random value between 1 and 9
+    trophy_expiration = (rand() % 9 + 1);
+
+    // write trophy to screen
+    move(trophy_row, trophy_col);
+    printw("%d", trophy_value);
+}
+
+/*
+* Trophy - Expire
+* By: Benjamin Carlson
+* What it does: Expires the trophy.
+*/
+void run_every_second_check_trophy()
+{
+    // check if trophy has expired
+    if (trophy_expiration == 0)
+    {
+        // if trophy has expired, remove trophy from screen
+        move(trophy_row, trophy_col);
+        printw(" ");
+        refresh();
+        init_trophy();
+    }
+    else
+    {
+        trophy_expiration--;
     }
 }
