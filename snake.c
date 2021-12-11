@@ -1,7 +1,7 @@
 /*
 * Snake Game
 * CS 355 Final Project
-* Benjamin Carlson, Josh Magalhaes, Erik Marrro, Nick Sbado
+* Benjamin Carlson, Josh Magalhaes, Erik Marrro, Nick Sbabo
 *
 * To compile: gcc -o snake snake.c -lcurses
 * To run: ./snake
