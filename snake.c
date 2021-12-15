@@ -494,7 +494,21 @@ trophy()/* Trophy Spawning System by Joshua Magalhaes */
     trophy_col = rand() % COLS;
     trophy_row = rand() % LINES;
     trophy_score = rand() % 9;
+    int loophelp = 1;
+    int loophelp2 = 1;
+    while(loophelp == 1) {
+    	if(trophy_score == 0)
+	   {
+	     trophy_score = rand() % 9;}
+	else
+	    { loophelp--;}
     trophy_lifespanfirststrike = rand() % 9;
+    while(loophelp == 1) {
+    	if(trophy_lifespanfirststrike == 0)
+	   {
+	     trophy_lifespanfirststrike = rand() % 9;}
+	else
+	    { loophelp--;}
     trophy_lifespan = trophy_lifespanfirststrike * 128
     
     move(trophy_row, trophy_col);
